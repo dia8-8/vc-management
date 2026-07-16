@@ -81,4 +81,28 @@ router.patch("/:id", async (req, res) => {
   res.json(user);
 });
 
+router.delete("/:id", async (req, res) => {
+  if (req.params.id === req.user.id) {
+    return res.status(400).json({ error: "You cannot delete your own account" });
+  }
+
+  const target = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!target) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  if (target.role === "ADMIN") {
+    const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
+    if (adminCount <= 1) {
+      return res.status(400).json({ error: "Cannot delete the last remaining admin" });
+    }
+  }
+
+  await prisma.user.delete({ where: { id: req.params.id } });
+
+  await logActivity({ userId: req.user.id, action: "DELETE", entityType: "User", entityId: req.params.id, details: { name: target.name, email: target.email } });
+
+  res.status(204).end();
+});
+
 module.exports = router;

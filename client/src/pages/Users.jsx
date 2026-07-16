@@ -46,6 +46,16 @@ export default function Users() {
     load();
   }
 
+  async function handleDelete(u) {
+    if (!confirm(`Delete user "${u.name}"? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/users/${u.id}`);
+      load();
+    } catch (err) {
+      alert(err.response?.data?.error || "Something went wrong");
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -98,6 +108,13 @@ export default function Users() {
                   }`}
                 >
                   {u.active ? "Deactivate" : "Activate"}
+                </button>
+                <button
+                  onClick={() => handleDelete(u)}
+                  disabled={u.id === me.id}
+                  className="text-xs font-medium text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 px-2 py-1.5 disabled:opacity-50"
+                >
+                  Delete
                 </button>
               </div>
             </div>
