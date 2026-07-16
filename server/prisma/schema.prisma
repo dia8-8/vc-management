@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  DRIVER
+}
+
+enum Unit {
+  KG
+  BOX
+  PIECE
+  BAG
+  CARTON
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUSTMENT
+  WASTE
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(STAFF)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  customersCreated Customer[]      @relation("CustomerCreatedBy")
+  ordersCreated    Order[]         @relation("OrderCreatedBy")
+  stockMovements   StockMovement[] @relation("StockMovementCreatedBy")
+  paymentsRecorded Payment[]       @relation("PaymentCreatedBy")
+  activityLogs     ActivityLog[]
+  orderAssignments Order[]        @relation("OrderDriver")
+  expensesCreated  Expense[]      @relation("ExpenseCreatedBy")
+}
+
+model Customer {
+  id           String   @id @default(cuid())
+  name         String
+  phone        String?
+  address      String?
+  businessName String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  createdById String?
+  createdBy   User?   @relation("CustomerCreatedBy", fields: [createdById], references: [id])
+
+  orders        Order[]
+  customPrices  CustomerPrice[]
+}
+
+model Product {
+  id                String   @id @default(cuid())
+  name              String
+  category          String
+  unit              Unit     @default(KG)
+  costPrice         Decimal  @db.Decimal(10, 2)
+  sellingPrice      Decimal  @db.Decimal(10, 2)
+  stockQty          Decimal  @default(0) @db.Decimal(10, 2)
+  lowStockThreshold Decimal  @default(10) @db.Decimal(10, 2)
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
+  customPrices   CustomerPrice[]
+}
+
+model CustomerPrice {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  unitPrice  Decimal  @db.Decimal(10, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([customerId, productId])
+}
+
+model StockMovement {
+  id        String            @id @default(cuid())
+  productId String
+  product   Product           @relation(fields: [productId], references: [id])
+  type      StockMovementType
+  quantity  Decimal           @db.Decimal(10, 2)
+  reason    String?
+  orderId   String?
+  order     Order?            @relation(fields: [orderId], references: [id])
+  createdAt DateTime          @default(now())
+
+  createdById String?
+  createdBy   User?   @relation("StockMovementCreatedBy", fields: [createdById], references: [id])
+
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+}
+
+model Order {
+  id          String        @id @default(cuid())
+  orderNumber String        @unique
+  customerId  String
+  customer    Customer      @relation(fields: [customerId], references: [id])
+  status      OrderStatus   @default(PENDING)
+  discount    Decimal       @default(0) @db.Decimal(10, 2)
+  deliveryFee Decimal       @default(0) @db.Decimal(10, 2)
+  subtotal    Decimal       @default(0) @db.Decimal(10, 2)
+  total       Decimal       @default(0) @db.Decimal(10, 2)
+  notes       String?
+  paymentStatus PaymentStatus @default(UNPAID)
+  amountPaid  Decimal       @default(0) @db.Decimal(10, 2)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  createdById String?
+  createdBy   User?   @relation("OrderCreatedBy", fields: [createdById], references: [id])
+
+  assignedDriverId String?
+  assignedDriver   User?   @relation("OrderDriver", fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  deliveryNotes    String?
+
+  items          OrderItem[]
+  stockMovements StockMovement[]
+  payments       Payment[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Decimal @db.Decimal(10, 2)
+  unitPrice Decimal @db.Decimal(10, 2)
+  lineTotal Decimal @db.Decimal(10, 2)
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount    Decimal  @db.Decimal(10, 2)
+  note      String?
+  createdAt DateTime @default(now())
+
+  createdById String?
+  createdBy   User?   @relation("PaymentCreatedBy", fields: [createdById], references: [id])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String?
+  details    String?
+  createdAt  DateTime @default(now())
+}
+
+model Supplier {
+  id            String   @id @default(cuid())
+  name          String
+  contactPerson String?
+  phone         String?
+  email         String?
+  address       String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  products       Product[]
+  stockMovements StockMovement[]
+}
+
+enum ExpenseCategory {
+  FUEL
+  RENT
+  SALARIES
+  UTILITIES
+  OTHER
+}
+
+model Expense {
+  id        String          @id @default(cuid())
+  date      DateTime
+  category  ExpenseCategory
+  amount    Decimal         @db.Decimal(10, 2)
+  note      String?
+  createdAt DateTime        @default(now())
+
+  createdById String?
+  createdBy   User?   @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+}
+
+model Setting {
+  id                       String   @id @default("singleton")
+  companyName              String   @default("Viandes Corona")
+  address                  String?
+  phone                    String?
+  invoicePrefix            String   @default("ORD")
+  currency                 String   @default("CAD")
+  defaultLowStockThreshold Decimal  @default(10) @db.Decimal(10, 2)
+  taxRate                  Decimal  @default(0) @db.Decimal(5, 4)
+  updatedAt                DateTime @updatedAt
+}
