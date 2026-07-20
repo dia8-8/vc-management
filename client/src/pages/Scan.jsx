@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import api from "../api/client";
+import { parseVariableWeightCode } from "../lib/variableWeightBarcode";
 
 const CAMERA_DIV_ID = "scan-camera-reader";
 
@@ -10,6 +11,7 @@ export default function Scan() {
   const [suppliers, setSuppliers] = useState([]);
   const [supplierId, setSupplierId] = useState("");
   const [products, setProducts] = useState([]);
+  const [settings, setSettings] = useState(null);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [status, setStatus] = useState(null);
   const [recent, setRecent] = useState([]);
@@ -25,6 +27,7 @@ export default function Scan() {
   useEffect(() => {
     api.get("/suppliers").then(({ data }) => setSuppliers(data));
     api.get("/products").then(({ data }) => setProducts(data));
+    api.get("/settings").then(({ data }) => setSettings(data));
   }, []);
 
   useEffect(() => {
@@ -83,6 +86,16 @@ export default function Scan() {
     }
   }
 
+  async function lookupProduct(code) {
+    try {
+      const { data: product } = await api.get(`/products/by-barcode/${encodeURIComponent(code)}`);
+      return product;
+    } catch (err) {
+      if (err.response?.status === 404) return null;
+      throw err;
+    }
+  }
+
   async function handleScan(rawCode) {
     const code = String(rawCode).trim();
     if (!code || processing) return;
@@ -93,31 +106,49 @@ export default function Scan() {
     setProcessing(true);
     setStatus(null);
     try {
-      const { data: product } = await api.get(`/products/by-barcode/${encodeURIComponent(code)}`);
-      await addStock(product, code);
-    } catch (err) {
-      if (err.response?.status === 404) {
-        setStatus({ type: "notfound", code });
-      } else {
-        setStatus({ type: "error", message: err.response?.data?.error || "Lookup failed" });
+      // Try the raw scanned code first (fixed-barcode products).
+      const direct = await lookupProduct(code);
+      if (direct) {
+        await addStock(direct, code, null);
+        return;
       }
+
+      // Fall back to variable-weight parsing (scale labels encoding item + weight).
+      const parsed = parseVariableWeightCode(code, settings);
+      if (parsed) {
+        const product = await lookupProduct(parsed.itemCode);
+        if (product) {
+          await addStock(product, parsed.itemCode, parsed.weight);
+          return;
+        }
+        setStatus({ type: "notfound", code: parsed.itemCode, weight: parsed.weight });
+        return;
+      }
+
+      setStatus({ type: "notfound", code });
+    } catch (err) {
+      setStatus({ type: "error", message: err.response?.data?.error || "Lookup failed" });
     } finally {
       setProcessing(false);
     }
   }
 
-  async function addStock(product, code) {
-    const qty = Number(quantity) || 1;
+  async function addStock(product, code, weightOverride) {
+    const usesWeight = weightOverride != null;
+    const qty = usesWeight ? weightOverride : Number(quantity) || 1;
+    const unit = usesWeight ? settings?.variableWeightUnit || "" : "";
     try {
       await api.post("/inventory/movements", {
         productId: product.id,
         type: "IN",
         quantity: qty,
-        reason: reason || `Scanned${code ? ` (${code})` : ""}`,
+        reason: reason || `Scanned${code ? ` (${code})` : ""}${usesWeight ? ` · ${qty}${unit}` : ""}`,
         supplierId: supplierId || null,
       });
-      setStatus({ type: "success", product, quantity: qty });
-      setRecent((prev) => [{ id: `${Date.now()}-${product.id}`, name: product.name, quantity: qty, time: new Date() }, ...prev].slice(0, 15));
+      setStatus({ type: "success", product, quantity: qty, unit });
+      setRecent((prev) =>
+        [{ id: `${Date.now()}-${product.id}`, name: product.name, quantity: qty, unit, time: new Date() }, ...prev].slice(0, 15)
+      );
     } catch (err) {
       setStatus({ type: "error", message: err.response?.data?.error || "Could not add stock" });
     }
@@ -128,7 +159,7 @@ export default function Scan() {
     setProcessing(true);
     try {
       const { data: product } = await api.patch(`/products/${linkProductId}`, { barcode: status.code });
-      await addStock(product, status.code);
+      await addStock(product, status.code, status.weight ?? null);
       setLinkProductId("");
     } catch (err) {
       setStatus({ type: "error", message: err.response?.data?.error || "Could not link barcode" });
@@ -142,6 +173,11 @@ export default function Scan() {
       <div>
         <h1 className="text-xl font-semibold dark:text-gray-100">Scan to Stock In</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">Scan a barcode with a scanner or your camera to add stock instantly</p>
+        {settings && !settings.variableWeightEnabled && (
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+            Scale labels that encode item + weight in one barcode? Turn on variable-weight parsing in Settings.
+          </p>
+        )}
       </div>
 
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 shadow-sm space-y-3">
@@ -212,13 +248,21 @@ export default function Scan() {
 
       {status?.type === "success" && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-900/40 rounded-2xl p-4 text-sm text-green-700 dark:text-green-300">
-          Added {status.quantity} to <span className="font-semibold">{status.product.name}</span>.
+          Added {status.quantity}
+          {status.unit ? ` ${status.unit}` : ""} to <span className="font-semibold">{status.product.name}</span>.
         </div>
       )}
       {status?.type === "notfound" && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/40 rounded-2xl p-4 space-y-2">
           <div className="text-sm text-amber-700 dark:text-amber-300">
-            No product matches barcode <span className="font-mono">{status.code}</span>.
+            No product matches barcode <span className="font-mono">{status.code}</span>
+            {status.weight != null && (
+              <>
+                {" "}
+                · parsed weight <span className="font-semibold">{status.weight} {settings?.variableWeightUnit}</span>
+              </>
+            )}
+            .
           </div>
           <div className="flex gap-2">
             <select
@@ -257,7 +301,10 @@ export default function Scan() {
             <div key={r.id} className="p-3 flex items-center justify-between text-sm dark:text-gray-200">
               <span>{r.name}</span>
               <span className="flex items-center gap-3">
-                <span className="text-green-600 dark:text-green-400 font-semibold">+{r.quantity}</span>
+                <span className="text-green-600 dark:text-green-400 font-semibold">
+                  +{r.quantity}
+                  {r.unit ? ` ${r.unit}` : ""}
+                </span>
                 <span className="text-xs text-gray-400 dark:text-gray-500">{r.time.toLocaleTimeString()}</span>
               </span>
             </div>

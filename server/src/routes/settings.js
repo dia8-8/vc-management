@@ -28,6 +28,14 @@ const settingsSchema = z.object({
   currency: z.string().min(1),
   defaultLowStockThreshold: z.coerce.number().nonnegative(),
   taxRate: z.coerce.number().min(0).max(1),
+  variableWeightEnabled: z.boolean().optional(),
+  variableWeightPrefix: z.string().optional(),
+  variableWeightItemStart: z.coerce.number().int().min(0).optional(),
+  variableWeightItemLength: z.coerce.number().int().min(1).optional(),
+  variableWeightWeightStart: z.coerce.number().int().min(0).optional(),
+  variableWeightWeightLength: z.coerce.number().int().min(1).optional(),
+  variableWeightDecimals: z.coerce.number().int().min(0).max(6).optional(),
+  variableWeightUnit: z.string().optional(),
 });
 
 router.patch("/", requireRole("ADMIN"), async (req, res) => {
