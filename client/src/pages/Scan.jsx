@@ -254,7 +254,7 @@ export default function Scan() {
         </button>
         {cameraError && <p className="text-xs text-red-600 dark:text-red-400">{cameraError}</p>}
 
-        <div className="relative mt-2 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 min-h-[280px] bg-gray-50 dark:bg-gray-900/60">
+        <div className="relative mt-2 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 h-[280px] bg-gray-50 dark:bg-gray-900/60">
           <div id={CAMERA_DIV_ID} className="w-full h-full" />
           {!cameraOn && (
             <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-400 dark:text-gray-500 pointer-events-none px-4 text-center">
