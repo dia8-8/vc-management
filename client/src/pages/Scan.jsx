@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Html5QrcodeScanner } from "html5-qrcode";
+import { Html5Qrcode } from "html5-qrcode";
 import api from "../api/client";
+
+const CAMERA_DIV_ID = "scan-camera-reader";
 
 export default function Scan() {
   const [quantity, setQuantity] = useState("1");
@@ -12,11 +14,13 @@ export default function Scan() {
   const [status, setStatus] = useState(null);
   const [recent, setRecent] = useState([]);
   const [cameraOn, setCameraOn] = useState(false);
+  const [cameraError, setCameraError] = useState("");
   const [linkProductId, setLinkProductId] = useState("");
   const [processing, setProcessing] = useState(false);
 
   const inputRef = useRef(null);
   const lastScanRef = useRef({ code: "", time: 0 });
+  const html5QrRef = useRef(null);
 
   useEffect(() => {
     api.get("/suppliers").then(({ data }) => setSuppliers(data));
@@ -24,23 +28,51 @@ export default function Scan() {
   }, []);
 
   useEffect(() => {
-    if (!cameraOn) return;
-    const scanner = new Html5QrcodeScanner("scan-camera-reader", { fps: 10, qrbox: { width: 250, height: 150 } }, false);
-    scanner.render(
-      (decodedText) => handleScan(decodedText),
-      () => {}
-    );
     return () => {
-      scanner.clear().catch(() => {});
+      html5QrRef.current?.stop().catch(() => {});
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cameraOn]);
+  }, []);
 
   useEffect(() => {
     if (!cameraOn && status?.type !== "notfound") {
       inputRef.current?.focus();
     }
   }, [cameraOn, status]);
+
+  // Camera access must be requested directly inside the click handler (not a
+  // useEffect fired afterward) — some mobile browsers silently refuse
+  // getUserMedia if it isn't triggered synchronously by a user gesture.
+  async function toggleCamera() {
+    if (cameraOn) {
+      try {
+        await html5QrRef.current?.stop();
+        html5QrRef.current?.clear();
+      } catch {
+        // ignore
+      }
+      html5QrRef.current = null;
+      setCameraOn(false);
+      return;
+    }
+
+    setCameraError("");
+    try {
+      const instance = new Html5Qrcode(CAMERA_DIV_ID);
+      html5QrRef.current = instance;
+      await instance.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 150 } },
+        (decodedText) => handleScan(decodedText),
+        () => {}
+      );
+      setCameraOn(true);
+    } catch (err) {
+      html5QrRef.current = null;
+      setCameraError(
+        "Could not access the camera. Make sure you allow camera access when your browser asks, and that no other app is using the camera."
+      );
+    }
+  }
 
   function handleKeyDown(e) {
     if (e.key === "Enter") {
@@ -169,12 +201,13 @@ export default function Scan() {
 
         <button
           type="button"
-          onClick={() => setCameraOn((v) => !v)}
+          onClick={toggleCamera}
           className="text-sm font-medium text-brand-600 dark:text-brand-400 border border-brand-100 dark:border-brand-900/50 bg-brand-50 dark:bg-brand-900/20 rounded-lg px-4 py-2"
         >
           {cameraOn ? "Stop Camera" : "Use Camera Instead"}
         </button>
-        {cameraOn && <div id="scan-camera-reader" className="mt-2" />}
+        {cameraError && <p className="text-xs text-red-600 dark:text-red-400">{cameraError}</p>}
+        <div id={CAMERA_DIV_ID} className={cameraOn ? "mt-2" : "hidden"} />
       </div>
 
       {status?.type === "success" && (
