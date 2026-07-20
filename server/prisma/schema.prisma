@@ -88,6 +88,7 @@ model Product {
   stockQty          Decimal  @default(0) @db.Decimal(10, 2)
   lowStockThreshold Decimal  @default(10) @db.Decimal(10, 2)
   active            Boolean  @default(true)
+  barcode           String?  @unique
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

@@ -8,7 +8,7 @@ function money(n) {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n || 0);
 }
 
-const emptyForm = { name: "", category: "", unit: "KG", costPrice: "", sellingPrice: "", stockQty: "", lowStockThreshold: "10", supplierId: "" };
+const emptyForm = { name: "", category: "", unit: "KG", costPrice: "", sellingPrice: "", stockQty: "", lowStockThreshold: "10", supplierId: "", barcode: "" };
 const PAGE_SIZE = 12;
 
 export default function Products() {
@@ -63,6 +63,7 @@ export default function Products() {
       stockQty: p.stockQty,
       lowStockThreshold: p.lowStockThreshold,
       supplierId: p.supplierId || "",
+      barcode: p.barcode || "",
     });
     setError("");
     setEditing(p);
@@ -126,6 +127,7 @@ export default function Products() {
                   <div className="text-xs text-gray-500 dark:text-gray-400 capitalize truncate">
                     {p.category}
                     {p.supplier ? ` · ${p.supplier.name}` : ""}
+                    {p.barcode ? ` · #${p.barcode}` : ""}
                   </div>
                 </div>
                 <div className="hidden sm:block text-right w-20 shrink-0">
@@ -212,6 +214,7 @@ export default function Products() {
               />
               <Field label="Low stock alert at" type="number" value={form.lowStockThreshold} onChange={(v) => setForm({ ...form, lowStockThreshold: v })} />
             </div>
+            <Field label="Barcode" value={form.barcode} onChange={(v) => setForm({ ...form, barcode: v })} placeholder="Scan or type a barcode…" />
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Supplier</label>
               <select

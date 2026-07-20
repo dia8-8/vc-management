@@ -29,6 +29,15 @@ router.get("/count", async (req, res) => {
   res.json({ total });
 });
 
+router.get("/by-barcode/:code", async (req, res) => {
+  const product = await prisma.product.findUnique({
+    where: { barcode: req.params.code },
+    include: { supplier: { select: { id: true, name: true } } },
+  });
+  if (!product) return res.status(404).json({ error: "No product with that barcode" });
+  res.json(product);
+});
+
 router.get("/", async (req, res) => {
   const { lowStock, limit, offset } = req.query;
   const where = buildProductWhere(req);
@@ -57,24 +66,42 @@ const productSchema = z.object({
   lowStockThreshold: z.coerce.number().nonnegative().optional(),
   active: z.boolean().optional(),
   supplierId: z.string().optional().nullable(),
+  barcode: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v ? v.trim() : null))
+    .transform((v) => v || null),
 });
 
 router.post("/", requireRole("ADMIN", "STAFF"), async (req, res) => {
   const parsed = productSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
 
-  const product = await prisma.product.create({ data: parsed.data });
-  await logActivity({ userId: req.user.id, action: "CREATE", entityType: "Product", entityId: product.id, details: parsed.data });
-  res.status(201).json(product);
+  try {
+    const product = await prisma.product.create({ data: parsed.data });
+    await logActivity({ userId: req.user.id, action: "CREATE", entityType: "Product", entityId: product.id, details: parsed.data });
+    res.status(201).json(product);
+  } catch (err) {
+    if (err.code === "P2002") return res.status(409).json({ error: "That barcode is already assigned to another product" });
+    console.error("Create product error:", err);
+    res.status(500).json({ error: "Something went wrong" });
+  }
 });
 
 router.patch("/:id", requireRole("ADMIN", "STAFF"), async (req, res) => {
   const parsed = productSchema.partial().safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
 
-  const product = await prisma.product.update({ where: { id: req.params.id }, data: parsed.data });
-  await logActivity({ userId: req.user.id, action: "UPDATE", entityType: "Product", entityId: product.id, details: parsed.data });
-  res.json(product);
+  try {
+    const product = await prisma.product.update({ where: { id: req.params.id }, data: parsed.data });
+    await logActivity({ userId: req.user.id, action: "UPDATE", entityType: "Product", entityId: product.id, details: parsed.data });
+    res.json(product);
+  } catch (err) {
+    if (err.code === "P2002") return res.status(409).json({ error: "That barcode is already assigned to another product" });
+    console.error("Update product error:", err);
+    res.status(500).json({ error: "Something went wrong" });
+  }
 });
 
 router.delete("/:id", requireRole("ADMIN"), async (req, res) => {

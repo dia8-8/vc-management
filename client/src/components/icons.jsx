@@ -154,3 +154,15 @@ export function MoonIcon(props) {
     </IconBase>
   );
 }
+
+export function ScanIcon(props) {
+  return (
+    <IconBase {...props}>
+      <path d="M3.5 8V5.5a2 2 0 0 1 2-2H8" />
+      <path d="M16 3.5h2.5a2 2 0 0 1 2 2V8" />
+      <path d="M20.5 16v2.5a2 2 0 0 1-2 2H16" />
+      <path d="M8 20.5H5.5a2 2 0 0 1-2-2V16" />
+      <path d="M7 8.5v7M10.5 8.5v7M13 8.5v7M17 8.5v7" />
+    </IconBase>
+  );
+}

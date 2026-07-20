@@ -17,6 +17,7 @@ import {
   ActivityIcon,
   SunIcon,
   MoonIcon,
+  ScanIcon,
 } from "./icons";
 
 const NAV_ITEMS = [
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { to: "/customers", label: "Customers", icon: CustomersIcon },
   { to: "/products", label: "Products", icon: ProductsIcon },
   { to: "/inventory", label: "Inventory", icon: InventoryIcon },
+  { to: "/scan", label: "Scan", icon: ScanIcon },
   { to: "/orders", label: "Orders", icon: OrdersIcon },
   { to: "/suppliers", label: "Suppliers", icon: SuppliersIcon },
   { to: "/expenses", label: "Expenses", icon: ExpensesIcon },

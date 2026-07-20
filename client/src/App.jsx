@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Customers from "./pages/Customers";
 import Products from "./pages/Products";
 import Inventory from "./pages/Inventory";
+import Scan from "./pages/Scan";
 import Orders from "./pages/Orders";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
@@ -68,6 +69,14 @@ export default function App() {
               element={
                 <RoleRoute roles={["ADMIN", "STAFF"]}>
                   <Inventory />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/scan"
+              element={
+                <RoleRoute roles={["ADMIN", "STAFF"]}>
+                  <Scan />
                 </RoleRoute>
               }
             />
