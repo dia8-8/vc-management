@@ -16,6 +16,7 @@ export default function Scan() {
   const [status, setStatus] = useState(null);
   const [recent, setRecent] = useState([]);
   const [cameraOn, setCameraOn] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [linkProductId, setLinkProductId] = useState("");
   const [processing, setProcessing] = useState(false);
@@ -59,7 +60,11 @@ export default function Scan() {
     }
 
     setCameraError("");
+    setCameraStarting(true);
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("This browser doesn't support camera access (getUserMedia unavailable).");
+      }
       const instance = new Html5Qrcode(CAMERA_DIV_ID);
       html5QrRef.current = instance;
       await instance.start(
@@ -72,8 +77,12 @@ export default function Scan() {
     } catch (err) {
       html5QrRef.current = null;
       setCameraError(
-        "Could not access the camera. Make sure you allow camera access when your browser asks, and that no other app is using the camera."
+        err?.message && typeof err.message === "string" && err.message.length < 200
+          ? err.message
+          : "Could not access the camera. Make sure you allow camera access when your browser asks, and that no other app is using the camera."
       );
+    } finally {
+      setCameraStarting(false);
     }
   }
 
@@ -238,15 +247,21 @@ export default function Scan() {
         <button
           type="button"
           onClick={toggleCamera}
-          className="text-sm font-medium text-brand-600 dark:text-brand-400 border border-brand-100 dark:border-brand-900/50 bg-brand-50 dark:bg-brand-900/20 rounded-lg px-4 py-2"
+          disabled={cameraStarting}
+          className="text-sm font-medium text-brand-600 dark:text-brand-400 border border-brand-100 dark:border-brand-900/50 bg-brand-50 dark:bg-brand-900/20 rounded-lg px-4 py-2 disabled:opacity-60"
         >
-          {cameraOn ? "Stop Camera" : "Use Camera Instead"}
+          {cameraStarting ? "Requesting camera…" : cameraOn ? "Stop Camera" : "Use Camera Instead"}
         </button>
         {cameraError && <p className="text-xs text-red-600 dark:text-red-400">{cameraError}</p>}
-        <div
-          id={CAMERA_DIV_ID}
-          className="mt-2 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 [&:empty]:hidden [&:empty]:border-0 [&:empty]:mt-0"
-        />
+
+        <div className="relative mt-2 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 min-h-[280px] bg-gray-50 dark:bg-gray-900/60">
+          <div id={CAMERA_DIV_ID} className="w-full h-full" />
+          {!cameraOn && (
+            <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-400 dark:text-gray-500 pointer-events-none px-4 text-center">
+              {cameraStarting ? "Requesting camera access…" : "Camera preview will appear here"}
+            </div>
+          )}
+        </div>
       </div>
 
       {status?.type === "success" && (
