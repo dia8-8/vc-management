@@ -243,7 +243,10 @@ export default function Scan() {
           {cameraOn ? "Stop Camera" : "Use Camera Instead"}
         </button>
         {cameraError && <p className="text-xs text-red-600 dark:text-red-400">{cameraError}</p>}
-        <div id={CAMERA_DIV_ID} className={cameraOn ? "mt-2" : "hidden"} />
+        <div
+          id={CAMERA_DIV_ID}
+          className="mt-2 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 [&:empty]:hidden [&:empty]:border-0 [&:empty]:mt-0"
+        />
       </div>
 
       {status?.type === "success" && (
