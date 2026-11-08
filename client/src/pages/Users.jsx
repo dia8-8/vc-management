@@ -6,7 +6,8 @@ import { useAuth } from "../context/AuthContext";
 const ROLES = ["ADMIN", "STAFF", "DRIVER"];
 
 export default function Users() {
-  const { user: me } = useAuth();
+  const { user: me, license, hasFeature } = useAuth();
+  const canAssignDrivers = hasFeature("deliveries");
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
@@ -61,7 +62,15 @@ export default function Users() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-semibold dark:text-gray-100">Users</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Manage staff accounts and permissions</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Manage staff accounts and permissions
+            {license && (
+              <>
+                {" · "}
+                {users.filter((u) => u.active).length} of {license.maxUsers} users
+              </>
+            )}
+          </p>
         </div>
         <button onClick={() => setShowNew(true)} className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium px-4 py-2.5 rounded-lg">
           + Add User
@@ -92,7 +101,7 @@ export default function Users() {
                   onChange={(e) => changeRole(u, e.target.value)}
                   className="text-xs border border-gray-200 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 rounded-lg px-2 py-1.5 disabled:opacity-50"
                 >
-                  {ROLES.map((r) => (
+                  {ROLES.filter((r) => r !== "DRIVER" || canAssignDrivers || u.role === "DRIVER").map((r) => (
                     <option key={r} value={r}>
                       {r}
                     </option>
@@ -163,7 +172,7 @@ export default function Users() {
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
                 className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm"
               >
-                {ROLES.map((r) => (
+                {ROLES.filter((r) => r !== "DRIVER" || canAssignDrivers).map((r) => (
                   <option key={r} value={r}>
                     {r}
                   </option>

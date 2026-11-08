@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const { z } = require("zod");
 const prisma = require("../lib/prisma");
+const { prismaRaw } = require("../lib/db");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const { logActivity } = require("../lib/activityLog");
 
@@ -31,9 +32,17 @@ router.post("/", async (req, res) => {
   }
   const { name, email, password, role } = parsed.data;
 
-  const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  const existing = await prismaRaw.user.findUnique({ where: { email: email.toLowerCase() } });
   if (existing) {
     return res.status(409).json({ error: "A user with that email already exists" });
+  }
+
+  if (role === "DRIVER" && !req.license.features.includes("deliveries")) {
+    return res.status(403).json({ error: "Driver accounts aren't included in your plan" });
+  }
+  const activeUsers = await prisma.user.count({ where: { active: true } });
+  if (activeUsers >= req.license.maxUsers) {
+    return res.status(403).json({ error: `Your plan allows ${req.license.maxUsers} users. Contact us to raise the limit.` });
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -62,6 +71,16 @@ router.patch("/:id", async (req, res) => {
 
   if (req.params.id === req.user.id && parsed.data.active === false) {
     return res.status(400).json({ error: "You cannot deactivate your own account" });
+  }
+
+  if (parsed.data.active === true) {
+    const activeUsers = await prisma.user.count({ where: { active: true } });
+    if (activeUsers >= req.license.maxUsers) {
+      return res.status(403).json({ error: `Your plan allows ${req.license.maxUsers} users. Contact us to raise the limit.` });
+    }
+  }
+  if (parsed.data.role === "DRIVER" && !req.license.features.includes("deliveries")) {
+    return res.status(403).json({ error: "Driver accounts aren't included in your plan" });
   }
 
   const data = { ...parsed.data };

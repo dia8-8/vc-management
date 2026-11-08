@@ -25,19 +25,21 @@ const NAV_ITEMS = [
   { to: "/customers", label: "Customers", icon: CustomersIcon },
   { to: "/products", label: "Products", icon: ProductsIcon },
   { to: "/inventory", label: "Inventory", icon: InventoryIcon },
-  { to: "/scan", label: "Scan", icon: ScanIcon },
+  { to: "/scan", label: "Scan", icon: ScanIcon, feature: "barcode" },
   { to: "/orders", label: "Orders", icon: OrdersIcon },
   { to: "/suppliers", label: "Suppliers", icon: SuppliersIcon },
   { to: "/expenses", label: "Expenses", icon: ExpensesIcon },
-  { to: "/deliveries", label: "Deliveries", icon: DeliveriesIcon },
-  { to: "/reports", label: "Reports", icon: ReportsIcon },
+  { to: "/deliveries", label: "Deliveries", icon: DeliveriesIcon, feature: "deliveries" },
+  { to: "/reports", label: "Reports", icon: ReportsIcon, feature: "reports" },
 ];
 
 const ADMIN_NAV_ITEMS = [
   { to: "/users", label: "Users", icon: UsersAdminIcon },
   { to: "/settings", label: "Settings", icon: SettingsIcon },
-  { to: "/activity-log", label: "Activity Log", icon: ActivityIcon },
+  { to: "/activity-log", label: "Activity Log", icon: ActivityIcon, feature: "activity-log" },
 ];
+
+const PLATFORM_NAV_ITEMS = [{ to: "/platform", label: "Clients", icon: CustomersIcon, end: true }];
 
 const DRIVER_NAV_ITEMS = [{ to: "/deliveries", label: "Deliveries", icon: DeliveriesIcon, end: true }];
 
@@ -50,7 +52,7 @@ const MOBILE_NAV_ITEMS = [
 ];
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, license, hasFeature } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -61,9 +63,24 @@ export default function Layout() {
   }
 
   const isDriver = user?.role === "DRIVER";
-  const items = isDriver ? DRIVER_NAV_ITEMS : user?.role === "ADMIN" ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
-  const mobileBottomItems = isDriver ? DRIVER_NAV_ITEMS : MOBILE_NAV_ITEMS;
-  const mobileExtraItems = isDriver ? [] : NAV_ITEMS.filter((i) => !MOBILE_NAV_ITEMS.some((m) => m.to === i.to));
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
+  // Hide anything the client's plan doesn't include
+  const allowed = (list) => list.filter((i) => !i.feature || hasFeature(i.feature));
+  const items = isSuperAdmin
+    ? PLATFORM_NAV_ITEMS
+    : isDriver
+      ? DRIVER_NAV_ITEMS
+      : user?.role === "ADMIN"
+        ? allowed([...NAV_ITEMS, ...ADMIN_NAV_ITEMS])
+        : allowed(NAV_ITEMS);
+  const mobileBottomItems = isSuperAdmin ? PLATFORM_NAV_ITEMS : isDriver ? DRIVER_NAV_ITEMS : MOBILE_NAV_ITEMS;
+  const mobileExtraItems = isDriver || isSuperAdmin ? [] : allowed(NAV_ITEMS).filter((i) => !MOBILE_NAV_ITEMS.some((m) => m.to === i.to));
+  const adminMobileItems = user?.role === "ADMIN" ? allowed(ADMIN_NAV_ITEMS) : [];
+  const brandName = isSuperAdmin ? "Platform" : user?.companyName || "Viandes Corona";
+
+  const showLicenseBanner =
+    license && !license.blocked && (license.plan === "TRIAL" || (license.daysLeft !== null && license.daysLeft <= 7));
+  const contactEmail = import.meta.env.VITE_CONTACT_EMAIL;
 
   return (
     <div className="min-h-screen flex bg-gray-50 dark:bg-gray-900">
@@ -72,7 +89,7 @@ export default function Layout() {
         <div className="h-16 flex items-center gap-2 px-5 border-b border-gray-200 dark:border-gray-700">
           <span className="w-9 h-9 rounded-lg bg-brand-500 text-white flex items-center justify-center font-bold">VC</span>
           <div className="leading-tight">
-            <div className="font-semibold text-sm dark:text-gray-100">Viandes Corona</div>
+            <div className="font-semibold text-sm dark:text-gray-100 truncate max-w-[10rem]">{brandName}</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">Management</div>
           </div>
         </div>
@@ -121,7 +138,7 @@ export default function Layout() {
         <header className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 md:px-6 sticky top-0 z-20">
           <div className="flex items-center gap-2 md:hidden">
             <span className="w-8 h-8 rounded-lg bg-brand-500 text-white flex items-center justify-center font-bold text-sm">VC</span>
-            <span className="font-semibold text-sm dark:text-gray-100">Viandes Corona</span>
+            <span className="font-semibold text-sm dark:text-gray-100 truncate max-w-[10rem]">{brandName}</span>
           </div>
           <div className="hidden md:block" />
           <div className="flex items-center gap-2">
@@ -154,8 +171,7 @@ export default function Layout() {
                 {item.label}
               </NavLink>
             ))}
-            {user?.role === "ADMIN" &&
-              ADMIN_NAV_ITEMS.map((item) => (
+            {adminMobileItems.map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
@@ -174,6 +190,26 @@ export default function Layout() {
 
         {/* Main content */}
         <main className="flex-1 min-w-0 p-4 md:p-6 pb-24 md:pb-6">
+          {showLicenseBanner && (
+            <div
+              className={`mb-4 rounded-xl border px-4 py-2.5 text-sm ${
+                license.plan === "TRIAL"
+                  ? "bg-brand-50 dark:bg-brand-900/20 border-brand-100 dark:border-brand-900/40 text-brand-700 dark:text-brand-300"
+                  : "bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-900/40 text-amber-700 dark:text-amber-300"
+              }`}
+            >
+              {license.plan === "TRIAL"
+                ? `Free trial: ${license.daysLeft} day${license.daysLeft === 1 ? "" : "s"} left.`
+                : `Your license expires in ${license.daysLeft} day${license.daysLeft === 1 ? "" : "s"}.`}{" "}
+              {contactEmail ? (
+                <a className="underline font-medium" href={`mailto:${contactEmail}?subject=License%20for%20${encodeURIComponent(brandName)}`}>
+                  Contact us to activate or renew
+                </a>
+              ) : (
+                "Contact your provider to activate or renew."
+              )}
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

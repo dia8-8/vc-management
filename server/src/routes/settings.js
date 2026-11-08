@@ -3,17 +3,13 @@ const { z } = require("zod");
 const prisma = require("../lib/prisma");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const { logActivity } = require("../lib/activityLog");
+const { getTenantSettings } = require("../lib/settings");
+const { currentTenantId } = require("../lib/db");
 
 const router = express.Router();
 router.use(requireAuth);
 
-async function getOrCreateSettings() {
-  return prisma.setting.upsert({
-    where: { id: "singleton" },
-    update: {},
-    create: { id: "singleton" },
-  });
-}
+const getOrCreateSettings = getTenantSettings;
 
 router.get("/", async (req, res) => {
   const settings = await getOrCreateSettings();
@@ -44,7 +40,7 @@ router.patch("/", requireRole("ADMIN"), async (req, res) => {
 
   await getOrCreateSettings();
   const settings = await prisma.setting.update({
-    where: { id: "singleton" },
+    where: { tenantId: currentTenantId() },
     data: parsed.data,
   });
 

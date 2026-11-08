@@ -90,7 +90,19 @@ router.delete("/:id", async (req, res) => {
   res.status(204).end();
 });
 
-router.get("/:id/prices", async (req, res) => {
+// CustomerPrice has no tenant column of its own, so confirm the customer (and
+// product, when given) belong to the caller's client before touching it.
+async function ownsPriceTargets(req, res, next) {
+  const customer = await prisma.customer.findUnique({ where: { id: req.params.id } });
+  if (!customer) return res.status(404).json({ error: "Customer not found" });
+  if (req.params.productId) {
+    const product = await prisma.product.findUnique({ where: { id: req.params.productId } });
+    if (!product) return res.status(404).json({ error: "Product not found" });
+  }
+  next();
+}
+
+router.get("/:id/prices", ownsPriceTargets, async (req, res) => {
   const prices = await prisma.customerPrice.findMany({
     where: { customerId: req.params.id },
     include: { product: { select: { id: true, name: true, unit: true, sellingPrice: true } } },
@@ -102,7 +114,7 @@ const customerPriceSchema = z.object({
   unitPrice: z.coerce.number().nonnegative(),
 });
 
-router.put("/:id/prices/:productId", async (req, res) => {
+router.put("/:id/prices/:productId", ownsPriceTargets, async (req, res) => {
   const parsed = customerPriceSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
 
@@ -117,7 +129,7 @@ router.put("/:id/prices/:productId", async (req, res) => {
   res.json(price);
 });
 
-router.delete("/:id/prices/:productId", async (req, res) => {
+router.delete("/:id/prices/:productId", ownsPriceTargets, async (req, res) => {
   await prisma.customerPrice.deleteMany({ where: { customerId: req.params.id, productId: req.params.productId } });
   await logActivity({ userId: req.user.id, action: "DELETE", entityType: "CustomerPrice", entityId: `${req.params.id}:${req.params.productId}` });
   res.status(204).end();

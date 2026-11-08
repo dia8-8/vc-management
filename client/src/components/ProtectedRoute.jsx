@@ -27,3 +27,10 @@ export function RoleRoute({ roles, children }) {
   if (!roles.includes(user.role)) return <Navigate to="/" replace />;
   return children;
 }
+
+// Blocks pages that aren't part of the client's plan (the server enforces this too)
+export function FeatureRoute({ feature, children }) {
+  const { hasFeature } = useAuth();
+  if (!hasFeature(feature)) return <Navigate to="/" replace />;
+  return children;
+}

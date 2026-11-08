@@ -8,9 +8,21 @@ datasource db {
 }
 
 enum Role {
+  SUPER_ADMIN
   ADMIN
   STAFF
   DRIVER
+}
+
+enum Plan {
+  TRIAL
+  BASIC
+  PRO
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
 }
 
 enum Unit {
@@ -59,6 +71,11 @@ model User {
   activityLogs     ActivityLog[]
   orderAssignments Order[]        @relation("OrderDriver")
   expensesCreated  Expense[]      @relation("ExpenseCreatedBy")
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
 }
 
 model Customer {
@@ -76,6 +93,11 @@ model Customer {
 
   orders        Order[]
   customPrices  CustomerPrice[]
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
 }
 
 model Product {
@@ -88,7 +110,7 @@ model Product {
   stockQty          Decimal  @default(0) @db.Decimal(10, 2)
   lowStockThreshold Decimal  @default(10) @db.Decimal(10, 2)
   active            Boolean  @default(true)
-  barcode           String?  @unique
+  barcode           String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -98,6 +120,12 @@ model Product {
   orderItems     OrderItem[]
   stockMovements StockMovement[]
   customPrices   CustomerPrice[]
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@unique([tenantId, barcode])
 }
 
 model CustomerPrice {
@@ -129,11 +157,16 @@ model StockMovement {
 
   supplierId String?
   supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
 }
 
 model Order {
   id          String        @id @default(cuid())
-  orderNumber String        @unique
+  orderNumber String
   customerId  String
   customer    Customer      @relation(fields: [customerId], references: [id])
   status      OrderStatus   @default(PENDING)
@@ -157,6 +190,12 @@ model Order {
   items          OrderItem[]
   stockMovements StockMovement[]
   payments       Payment[]
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@unique([tenantId, orderNumber])
 }
 
 model OrderItem {
@@ -191,6 +230,11 @@ model ActivityLog {
   entityId   String?
   details    String?
   createdAt  DateTime @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
 }
 
 model Supplier {
@@ -206,6 +250,11 @@ model Supplier {
 
   products       Product[]
   stockMovements StockMovement[]
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
 }
 
 enum ExpenseCategory {
@@ -226,10 +275,15 @@ model Expense {
 
   createdById String?
   createdBy   User?   @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
 }
 
 model Setting {
-  id                       String   @id @default("singleton")
+  id                       String   @id @default(cuid())
   companyName              String   @default("Viandes Corona")
   address                  String?
   phone                    String?
@@ -250,4 +304,29 @@ model Setting {
   variableWeightWeightLength Int     @default(5)
   variableWeightDecimals     Int     @default(3)
   variableWeightUnit         String  @default("kg")
+
+  tenantId String @unique
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model Tenant {
+  id        String       @id @default(cuid())
+  name      String
+  plan      Plan         @default(TRIAL)
+  status    TenantStatus @default(ACTIVE)
+  // null = never expires
+  expiresAt DateTime?
+  maxUsers  Int          @default(3)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  users          User[]
+  customers      Customer[]
+  products       Product[]
+  stockMovements StockMovement[]
+  orders         Order[]
+  activityLogs   ActivityLog[]
+  suppliers      Supplier[]
+  expenses       Expense[]
+  setting        Setting?
 }

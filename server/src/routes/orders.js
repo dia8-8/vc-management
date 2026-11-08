@@ -1,13 +1,14 @@
 const express = require("express");
 const { z } = require("zod");
 const prisma = require("../lib/prisma");
-const { requireAuth, requireRole } = require("../middleware/auth");
+const { requireAuth, requireRole, requireFeature } = require("../middleware/auth");
+const { getTenantSettings } = require("../lib/settings");
 const { logActivity } = require("../lib/activityLog");
 
 const router = express.Router();
 router.use(requireAuth);
 
-router.get("/drivers", requireRole("ADMIN", "STAFF"), async (req, res) => {
+router.get("/drivers", requireRole("ADMIN", "STAFF"), requireFeature("deliveries"), async (req, res) => {
   const drivers = await prisma.user.findMany({
     where: { role: "DRIVER", active: true },
     select: { id: true, name: true },
@@ -135,7 +136,7 @@ router.post("/", async (req, res) => {
   const subtotal = lineItems.reduce((sum, li) => sum + li.lineTotal, 0);
   const total = Math.max(0, subtotal - discount) + deliveryFee;
 
-  const settings = await prisma.setting.upsert({ where: { id: "singleton" }, update: {}, create: { id: "singleton" } });
+  const settings = await getTenantSettings();
   const orderCount = await prisma.order.count();
   const orderNumber = `${settings.invoicePrefix}-${String(orderCount + 1).padStart(4, "0")}`;
 
@@ -322,7 +323,7 @@ const assignDriverSchema = z.object({
   assignedDriverId: z.string().nullable(),
 });
 
-router.patch("/:id/assign-driver", requireRole("ADMIN", "STAFF"), async (req, res) => {
+router.patch("/:id/assign-driver", requireRole("ADMIN", "STAFF"), requireFeature("deliveries"), async (req, res) => {
   const parsed = assignDriverSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
   const { assignedDriverId } = parsed.data;

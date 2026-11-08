@@ -39,6 +39,9 @@ router.post("/movements", requireRole("ADMIN", "STAFF"), async (req, res) => {
 
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) return res.status(404).json({ error: "Product not found" });
+  if (supplierId && !(await prisma.supplier.findUnique({ where: { id: supplierId } }))) {
+    return res.status(400).json({ error: "Supplier not found" });
+  }
 
   // IN increases stock. ADJUSTMENT sets a delta (can be +/-). WASTE always decreases stock.
   let delta;

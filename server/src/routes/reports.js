@@ -1,9 +1,9 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
-const { requireAuth, requireRole } = require("../middleware/auth");
+const { requireAuth, requireRole, requireFeature } = require("../middleware/auth");
 
 const router = express.Router();
-router.use(requireAuth, requireRole("ADMIN", "STAFF"));
+router.use(requireAuth, requireFeature("reports"), requireRole("ADMIN", "STAFF"));
 
 function parseRange(req) {
   const { from, to } = req.query;

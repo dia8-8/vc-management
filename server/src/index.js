@@ -1,4 +1,7 @@
 require("dotenv").config();
+// Forward errors thrown/rejected inside async route handlers to the error middleware
+// instead of crashing the whole process (Express 4 doesn't do this on its own).
+require("express-async-errors");
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
@@ -15,6 +18,8 @@ const supplierRoutes = require("./routes/suppliers");
 const expenseRoutes = require("./routes/expenses");
 const reportRoutes = require("./routes/reports");
 const activityLogRoutes = require("./routes/activityLog");
+const platformRoutes = require("./routes/platform");
+const { ensureSuperAdmin } = require("./lib/bootstrap");
 
 const app = express();
 
@@ -37,6 +42,7 @@ app.use("/api/suppliers", supplierRoutes);
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/activity-log", activityLogRoutes);
+app.use("/api/platform", platformRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);
@@ -44,4 +50,7 @@ app.use((err, req, res, next) => {
 });
 
 const port = process.env.PORT || 4000;
-app.listen(port, () => console.log(`Server listening on port ${port}`));
+app.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
+  ensureSuperAdmin().catch((err) => console.error("Super admin bootstrap failed:", err));
+});

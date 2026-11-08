@@ -1,7 +1,7 @@
 const express = require("express");
 const { z } = require("zod");
 const prisma = require("../lib/prisma");
-const { requireAuth, requireRole } = require("../middleware/auth");
+const { requireAuth, requireRole, requireFeature } = require("../middleware/auth");
 const { logActivity } = require("../lib/activityLog");
 
 const router = express.Router();
@@ -29,8 +29,8 @@ router.get("/count", async (req, res) => {
   res.json({ total });
 });
 
-router.get("/by-barcode/:code", async (req, res) => {
-  const product = await prisma.product.findUnique({
+router.get("/by-barcode/:code", requireFeature("barcode"), async (req, res) => {
+  const product = await prisma.product.findFirst({
     where: { barcode: req.params.code },
     include: { supplier: { select: { id: true, name: true } } },
   });
@@ -77,6 +77,9 @@ const productSchema = z.object({
 router.post("/", requireRole("ADMIN", "STAFF"), async (req, res) => {
   const parsed = productSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+  if (parsed.data.supplierId && !(await prisma.supplier.findUnique({ where: { id: parsed.data.supplierId } }))) {
+    return res.status(400).json({ error: "Supplier not found" });
+  }
 
   try {
     const product = await prisma.product.create({ data: parsed.data });
@@ -92,6 +95,9 @@ router.post("/", requireRole("ADMIN", "STAFF"), async (req, res) => {
 router.patch("/:id", requireRole("ADMIN", "STAFF"), async (req, res) => {
   const parsed = productSchema.partial().safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+  if (parsed.data.supplierId && !(await prisma.supplier.findUnique({ where: { id: parsed.data.supplierId } }))) {
+    return res.status(400).json({ error: "Supplier not found" });
+  }
 
   try {
     const product = await prisma.product.update({ where: { id: req.params.id }, data: parsed.data });

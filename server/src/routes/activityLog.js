@@ -1,9 +1,9 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
-const { requireAuth, requireRole } = require("../middleware/auth");
+const { requireAuth, requireRole, requireFeature } = require("../middleware/auth");
 
 const router = express.Router();
-router.use(requireAuth, requireRole("ADMIN"));
+router.use(requireAuth, requireFeature("activity-log"), requireRole("ADMIN"));
 
 router.get("/", async (req, res) => {
   const { entityType, userId, from, to, limit, offset } = req.query;
